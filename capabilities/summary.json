@@ -1,0 +1,24 @@
+{
+  "id": "phoneGpsSummary",
+  "version": 1,
+  "status": "proposed",
+  "name": "Phone GPS Summary",
+  "attributes": {
+    "summary": {
+      "schema": {
+        "type": "object",
+        "properties": {"value": {"type": "string"}},
+        "additionalProperties": false,
+        "required": ["value"]
+      },
+      "setter": "setSummary",
+      "enumCommands": []
+    }
+  },
+  "commands": {
+    "setSummary": {
+      "name": "setSummary",
+      "arguments": [{"name": "value", "optional": false, "schema": {"type": "string"}}]
+    }
+  }
+}

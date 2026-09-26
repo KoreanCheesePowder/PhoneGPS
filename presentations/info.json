@@ -1,0 +1,8 @@
+{
+  "dashboard": {"states": [], "actions": [], "basicPlus": []},
+  "detailView": [
+    {"label": "제작자", "displayType": "state", "state": {"label": "{{author.value}}"}},
+    {"label": "드라이버 버전", "displayType": "state", "state": {"label": "{{driverVersion.value}}"}}
+  ],
+  "automation": {"conditions": [], "actions": []}
+}

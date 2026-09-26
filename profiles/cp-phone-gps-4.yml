@@ -1,0 +1,82 @@
+name: cp-phone-gps-4
+components:
+  - id: main
+    label: 휴대폰 위치
+    capabilities:
+      - id: buildbook37604.phoneGpsSummary
+        version: 1
+      - id: refresh
+        version: 1
+    categories:
+      - name: PresenceSensor
+  - id: phone1
+    label: Phone1
+    capabilities:
+      - id: buildbook37604.phoneGpsLocation
+        version: 1
+    categories: []
+  - id: phone2
+    label: Phone2
+    capabilities:
+      - id: buildbook37604.phoneGpsLocation
+        version: 1
+    categories: []
+  - id: phone3
+    label: Phone3
+    capabilities:
+      - id: buildbook37604.phoneGpsLocation
+        version: 1
+    categories: []
+  - id: phone4
+    label: Phone4
+    capabilities:
+      - id: buildbook37604.phoneGpsLocation
+        version: 1
+    categories: []
+  - id: info
+    label: 제작자 정보
+    capabilities:
+      - id: buildbook37604.phoneGpsInfo
+        version: 1
+    categories: []
+metadata:
+  mnmn: SmartThingsCommunity
+  vid: 9a4fae64-ea9c-3b38-9101-9fb88e7e025d
+preferences:
+  - name: nasIp
+    title: "NAS IP 주소"
+    description: "PhoneGPS-Logger가 실행되는 NAS 내부 IP"
+    required: true
+    preferenceType: string
+    definition:
+      stringType: text
+      minLength: 7
+      maxLength: 45
+      default: "192.168.1.92"
+  - name: apiPort
+    title: "PhoneGPS-Logger 포트"
+    description: "PhoneGPS-Logger API 포트"
+    required: true
+    preferenceType: integer
+    definition:
+      minimum: 1
+      maximum: 65535
+      default: 8787
+  - name: refreshSeconds
+    title: "위치 확인 주기(초)"
+    description: "NAS에서 현재 위치를 다시 읽는 주기"
+    required: true
+    preferenceType: integer
+    definition:
+      minimum: 30
+      maximum: 3600
+      default: 60
+  - name: displayCount
+    title: "화면 표시 개수"
+    description: "SmartThings에는 1~4개 표시. 추후 ESL은 이 값과 관계없이 최대 2개까지만 표시"
+    required: true
+    preferenceType: integer
+    definition:
+      minimum: 1
+      maximum: 4
+      default: 2

@@ -1,0 +1,22 @@
+{
+  "id": "phoneGpsInfo",
+  "version": 1,
+  "status": "proposed",
+  "name": "Phone GPS Info",
+  "attributes": {
+    "author": {
+      "schema": {"type": "object", "properties": {"value": {"type": "string"}}, "additionalProperties": false, "required": ["value"]},
+      "setter": "setAuthor",
+      "enumCommands": []
+    },
+    "driverVersion": {
+      "schema": {"type": "object", "properties": {"value": {"type": "string"}}, "additionalProperties": false, "required": ["value"]},
+      "setter": "setDriverVersion",
+      "enumCommands": []
+    }
+  },
+  "commands": {
+    "setAuthor": {"name": "setAuthor", "arguments": [{"name": "value", "optional": false, "schema": {"type": "string"}}]},
+    "setDriverVersion": {"name": "setDriverVersion", "arguments": [{"name": "value", "optional": false, "schema": {"type": "string"}}]}
+  }
+}

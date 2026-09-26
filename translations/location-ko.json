@@ -1,0 +1,12 @@
+{
+  "tag": "ko",
+  "label": "휴대폰 위치",
+  "attributes": {
+    "location": {
+      "label": "현재 위치",
+      "displayTemplate": "{{value}}",
+      "i18n": {}
+    }
+  },
+  "commands": {}
+}

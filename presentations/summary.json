@@ -1,0 +1,5 @@
+{
+  "dashboard": {"states": [{"label": "{{summary.value}}"}], "actions": [], "basicPlus": []},
+  "detailView": [{"label": "위치 요약", "displayType": "state", "state": {"label": "{{summary.value}}"}}],
+  "automation": {"conditions": [], "actions": []}
+}

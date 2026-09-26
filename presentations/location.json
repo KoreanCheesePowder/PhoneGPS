@@ -1,0 +1,11 @@
+{
+  "dashboard": {"states": [], "actions": [], "basicPlus": []},
+  "detailView": [
+    {
+      "label": "현재 위치",
+      "displayType": "state",
+      "state": {"label": "{{location.value}}"}
+    }
+  ],
+  "automation": {"conditions": [], "actions": []}
+}

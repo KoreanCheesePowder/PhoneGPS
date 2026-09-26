@@ -1,0 +1,12 @@
+{
+  "tag": "ko",
+  "label": "휴대폰 위치 요약",
+  "attributes": {
+    "summary": {
+      "label": "위치 요약",
+      "displayTemplate": "{{value}}",
+      "i18n": {}
+    }
+  },
+  "commands": {}
+}

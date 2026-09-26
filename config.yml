@@ -1,0 +1,14 @@
+name: C.P Phone GPS
+packageKey: cp-phone-gps-edge-v105
+permissions:
+  lan: {}
+  discovery: {}
+profiles:
+  - id: cp-phone-gps-1
+    file: profiles/cp-phone-gps-1.yml
+  - id: cp-phone-gps-2
+    file: profiles/cp-phone-gps-2.yml
+  - id: cp-phone-gps-3
+    file: profiles/cp-phone-gps-3.yml
+  - id: cp-phone-gps-4
+    file: profiles/cp-phone-gps-4.yml

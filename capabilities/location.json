@@ -1,0 +1,24 @@
+{
+  "id": "phoneGpsLocation",
+  "version": 1,
+  "status": "proposed",
+  "name": "Phone GPS Location",
+  "attributes": {
+    "location": {
+      "schema": {
+        "type": "object",
+        "properties": {"value": {"type": "string"}},
+        "additionalProperties": false,
+        "required": ["value"]
+      },
+      "setter": "setLocation",
+      "enumCommands": []
+    }
+  },
+  "commands": {
+    "setLocation": {
+      "name": "setLocation",
+      "arguments": [{"name": "value", "optional": false, "schema": {"type": "string"}}]
+    }
+  }
+}
