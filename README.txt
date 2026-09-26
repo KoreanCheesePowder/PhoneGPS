@@ -1,4 +1,4 @@
-C.P Phone GPS Edge Driver v1.0.5
+C.P Phone GPS Edge Driver v1.0.6
 
 - PhoneGPS-Logger API: http://NAS_IP:8787
 - 현재 위치 조회: /api/phones

@@ -14,7 +14,7 @@ local summary_cap = capabilities[CAP_SUMMARY]
 local location_cap = capabilities[CAP_LOCATION]
 local info_cap = capabilities[CAP_INFO]
 
-local DRIVER_VERSION = "v1.0.5"
+local DRIVER_VERSION = "v1.0.6"
 local DEVICE_DNI = "cp-phone-gps"
 local DEFAULT_PROFILE = "cp-phone-gps-2"
 local POLL_TIMER_FIELD = "phone_gps_poll_timer_v1"
@@ -169,7 +169,7 @@ local function emit_phone_data(device, payload)
       local dist = "-"
 
       if type(p) == "table" then
-        local addr = compact_address(p.display_address or p.road_address or p.address)
+        local addr = compact_address(p.road_address or p.display_address or p.address)
         dist = compact_distance(p.distance_from_home, p.distance_from_home_m)
 
         if addr == "" then
