@@ -14,7 +14,7 @@ local summary_cap = capabilities[CAP_SUMMARY]
 local location_cap = capabilities[CAP_LOCATION]
 local info_cap = capabilities[CAP_INFO]
 
-local DRIVER_VERSION = "v1.0.6"
+local DRIVER_VERSION = "v1.0.7"
 local DEVICE_DNI = "cp-phone-gps"
 local DEFAULT_PROFILE = "cp-phone-gps-2"
 local POLL_TIMER_FIELD = "phone_gps_poll_timer_v1"
@@ -145,6 +145,34 @@ local function http_json_request(device, path, method, body)
     error("PhoneGPS API JSON decode failed")
   end
   return decoded
+end
+
+
+local function sync_settings_to_nas(device)
+  local display_count = clamp_count(device.preferences and device.preferences.displayCount)
+  local esl_refresh = tonumber(device.preferences and device.preferences.eslRefreshSeconds) or 60
+  esl_refresh = math.max(30, math.min(3600, math.floor(esl_refresh)))
+
+  local body = json.encode({
+    display_count = display_count,
+    esl_refresh_seconds = esl_refresh
+  })
+
+  local ok, result = pcall(function()
+    return http_json_request(device, "/api/settings", "POST", body)
+  end)
+
+  if not ok then
+    log.warn("PhoneGPS settings sync failed: " .. tostring(result))
+    return false
+  end
+
+  log.info(string.format(
+    "PhoneGPS settings synced: display_count=%d esl_refresh_seconds=%d",
+    display_count,
+    esl_refresh
+  ))
+  return true
 end
 
 local function normalize_phones(payload)
@@ -313,6 +341,9 @@ local function added(driver, device)
   emit_info(device)
   emit_waiting(device)
   start_poll_timer(driver, device)
+  device.thread:call_with_delay(3, function()
+    sync_settings_to_nas(device)
+  end, "phone-gps-settings-initial")
 end
 
 local function info_changed(driver, device, event, args)
@@ -332,6 +363,10 @@ local function info_changed(driver, device, event, args)
 
   device:set_field(FAILURES_FIELD, 0)
   start_poll_timer(driver, device)
+
+  device.thread:call_with_delay(1, function()
+    sync_settings_to_nas(device)
+  end, "phone-gps-settings-sync")
 end
 
 local function removed(driver, device)

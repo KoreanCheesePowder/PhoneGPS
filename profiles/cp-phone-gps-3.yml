@@ -74,3 +74,13 @@ preferences:
       minimum: 1
       maximum: 4
       default: 2
+  - name: eslRefreshSeconds
+    title: "ESL 화면 갱신 주기(초)"
+    description: "ESP가 NAS에서 ESL 데이터를 다시 확인하는 기준 주기. 최소 30초"
+    required: true
+    preferenceType: integer
+    definition:
+      minimum: 30
+      maximum: 3600
+      default: 60
+

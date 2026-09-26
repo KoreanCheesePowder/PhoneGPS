@@ -2,7 +2,7 @@
 Set-Location $PSScriptRoot
 
 Write-Host "==============================================="
-Write-Host " C.P Phone GPS Edge Driver v1.0.6"
+Write-Host " C.P Phone GPS Edge Driver v1.0.7"
 Write-Host "==============================================="
 Write-Host ""
 
