@@ -1,3 +1,5 @@
+local CP_MONITOR_META = { driver_name = "C.P Phone GPS", driver_version = "v1.0.9", package_key = "cp-phone-gps-edge-v105", target_name = "PhoneGPS NAS", host_pref = "nasIp", port_pref = "apiPort", transport = "http", direct_monitor_pref = "nasIp" }
+local cp_monitor = require "cp_monitor"
 local capabilities = require "st.capabilities"
 local Driver = require "st.driver"
 local log = require "log"
@@ -14,7 +16,7 @@ local summary_cap = capabilities[CAP_SUMMARY]
 local location_cap = capabilities[CAP_LOCATION]
 local info_cap = capabilities[CAP_INFO]
 
-local DRIVER_VERSION = "v1.0.7"
+local DRIVER_VERSION = "v1.0.9"
 local DEVICE_DNI = "cp-phone-gps"
 local DEFAULT_PROFILE = "cp-phone-gps-2"
 local POLL_TIMER_FIELD = "phone_gps_poll_timer_v1"
@@ -134,12 +136,14 @@ local function http_json_request(device, path, method, body)
     req.source = ltn12.source.string(payload)
   end
 
+  pcall(cp_monitor.tx, device, payload and #payload or 1, method.." "..path)
   local ok, code, _, status = http.request(req)
   if not ok or tonumber(code) ~= 200 then
     error(string.format("PhoneGPS API request failed: %s %s", tostring(code), tostring(status)))
   end
 
   local raw = table.concat(chunks)
+  pcall(cp_monitor.rx, device, #raw, "HTTP "..tostring(code))
   local decoded = json.decode(raw)
   if type(decoded) ~= "table" then
     error("PhoneGPS API JSON decode failed")
@@ -253,22 +257,25 @@ local function poll_local_data(driver, device, force_refresh)
   end)
 
   if ok then
+    pcall(cp_monitor.poll, device, true)
     emit_phone_data(device, result)
     device:set_field(FAILURES_FIELD, 0)
-    device:online()
+    -- NAS/API poll success must not toggle SmartThings device availability.
+    -- Availability is owned by the Edge runtime; poll health is reported through
+    -- summary + C.P monitor telemetry to avoid repeated network normal/error alerts.
     return true
   end
 
   local failures = (tonumber(device:get_field(FAILURES_FIELD)) or 0) + 1
   device:set_field(FAILURES_FIELD, failures)
+  pcall(cp_monitor.poll, device, false, tostring(result))
   log.warn(string.format("PhoneGPS local API failed (%d): %s", failures, tostring(result)))
 
   if summary_cap and summary_cap.summary then
     device:emit_event(summary_cap.summary("PhoneGPS 연결 오류", {state_change = true}))
   end
-  if failures >= 3 then
-    device:offline()
-  end
+  -- Do not call device:offline() for temporary PhoneGPS NAS/API failures.
+  -- The failure remains visible in the summary and system-monitor telemetry.
   return false
 end
 
@@ -337,6 +344,7 @@ local function discovery_handler(driver, opts, should_continue)
 end
 
 local function added(driver, device)
+  pcall(cp_monitor.start, device, CP_MONITOR_META)
   apply_display_profile(device)
   emit_info(device)
   emit_waiting(device)

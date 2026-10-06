@@ -16,3 +16,9 @@ NAS 설정 동기화 JSON
 
 주의
 - PhoneGPS-Logger에 GET/POST /api/settings API가 있어야 설정 저장이 완료됩니다.
+
+
+[v1.0.9]
+- PhoneGPS NAS/API poll failures no longer force SmartThings device offline/online state.
+- Poll failure/recovery is still reported to C.P System Monitor and summary.
+- Existing GPS/location/settings behavior unchanged.
