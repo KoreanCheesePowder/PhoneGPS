@@ -1,1 +1,2 @@
+v1.1.3: Fixed false GPS_HEALTH_API_REJECTED logs for LuaDeviceHealthSetResponse userdata. Explicit failures still ERROR; normal heartbeat DEBUG. No changes to GPS polling or ESL integration.
 v1.1.2: Nonblocking startup + explicit one-time stale-health resync + 60s periodic health retries and diagnostics. No changes to GPS HTTP protocol or user rules.

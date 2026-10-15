@@ -1,4 +1,4 @@
-local CP_MONITOR_META = { driver_name = "C.P Phone GPS", driver_version = "v1.1.2", package_key = "cp-phone-gps-edge-v105", target_name = "PhoneGPS NAS", host_pref = "nasIp", port_pref = "apiPort", transport = "http", direct_monitor_pref = "nasIp" }
+local CP_MONITOR_META = { driver_name = "C.P Phone GPS", driver_version = "v1.1.3", package_key = "cp-phone-gps-edge-v105", target_name = "PhoneGPS NAS", host_pref = "nasIp", port_pref = "apiPort", transport = "http", direct_monitor_pref = "nasIp" }
 local cp_monitor = require "cp_monitor"
 local capabilities = require "st.capabilities"
 local Driver = require "st.driver"
@@ -16,7 +16,7 @@ local summary_cap = capabilities[CAP_SUMMARY]
 local location_cap = capabilities[CAP_LOCATION]
 local info_cap = capabilities[CAP_INFO]
 
-local DRIVER_VERSION = "v1.1.2"
+local DRIVER_VERSION = "v1.1.3"
 local DEVICE_DNI = "cp-phone-gps"
 local DEFAULT_PROFILE = "cp-phone-gps-2"
 local POLL_TIMER_FIELD = "phone_gps_poll_timer_v1"
@@ -117,20 +117,38 @@ end
 
 local function availability_call(device, wanted, reason)
   local op = wanted and "ONLINE" or "OFFLINE"
-  log.warn(string.format("GPS_HEALTH_CALL %s version=%s reason=%s device=%s",
+  log.debug(string.format("GPS_HEALTH_CALL %s version=%s reason=%s device=%s",
     op, DRIVER_VERSION, tostring(reason), tostring(device.id)))
   local invoke_ok, status, detail = pcall(function()
     if wanted then return device:online() end
     return device:offline()
   end)
-  if invoke_ok and status == true then
-    log.warn(string.format("GPS_HEALTH_API_ACCEPTED %s reason=%s device=%s",
-      op, tostring(reason), tostring(device.id)))
-    return true
+
+  if not invoke_ok then
+    log.error(string.format("GPS_HEALTH_API_EXCEPTION %s reason=%s error=%s",
+      op, tostring(reason), tostring(status)))
+    return false
   end
-  log.error(string.format("GPS_HEALTH_API_REJECTED %s reason=%s status=%s detail=%s",
-    op, tostring(reason), tostring(status), tostring(detail or (not invoke_ok and status) or "none")))
-  return false
+  if status == false or (status == nil and detail ~= nil) then
+    log.error(string.format("GPS_HEALTH_API_REJECTED %s reason=%s status=%s detail=%s",
+      op, tostring(reason), tostring(status), tostring(detail)))
+    return false
+  end
+
+  -- The hub SDK can return LuaDeviceHealthSetResponse userdata rather than true.
+  -- Its presence is not an explicit rejection and is not proof of cloud ONLINE.
+  -- The final health state must be verified through SmartThings devices:health.
+  if status == true then
+    log.debug(string.format("GPS_HEALTH_API_ACCEPTED %s reason=%s device=%s",
+      op, tostring(reason), tostring(device.id)))
+  elseif status == nil then
+    log.debug(string.format("GPS_HEALTH_API_NO_STATUS %s reason=%s device=%s",
+      op, tostring(reason), tostring(device.id)))
+  else
+    log.debug(string.format("GPS_HEALTH_API_RESPONSE %s reason=%s reply_type=%s device=%s",
+      op, tostring(reason), type(status), tostring(device.id)))
+  end
+  return true
 end
 
 -- This function returns immediately even if the SDK health API yields.
@@ -139,7 +157,7 @@ local function online_async(device, reason, force)
   local last_attempt = tonumber(read_field(device, HEALTH_LAST_ATTEMPT_FIELD)) or 0
   local active_since = tonumber(read_field(device, HEALTH_BUSY_FIELD)) or 0
   if active_since > 0 and now - active_since < HEALTH_BUSY_TIMEOUT_SECONDS then
-    log.warn("GPS_HEALTH_PENDING reason=" .. tostring(reason))
+    log.debug("GPS_HEALTH_PENDING reason=" .. tostring(reason))
     return
   end
   if active_since > 0 then
@@ -171,7 +189,7 @@ end
 
 local function start_online_timer(device)
   stop_online_timer(device)
-  log.warn("GPS_HEALTH_INIT version=" .. DRIVER_VERSION .. " device=" .. tostring(device.id))
+  log.debug("GPS_HEALTH_INIT version=" .. DRIVER_VERSION .. " device=" .. tostring(device.id))
   -- One-time offline/online transition resends a distinct state change to the
   -- platform if the hub and the cloud disagree following the network outage.
   -- Run only on upgrading to v1.1.2; not at every poll or every hub restart.
@@ -200,7 +218,7 @@ local function start_online_timer(device)
     end, "phone-gps-online-initial")
   end
   local timer = device.thread:call_on_schedule(HEALTH_INTERVAL_SECONDS, function()
-    log.warn("GPS_HEALTH_TICK version=" .. DRIVER_VERSION .. " device=" .. tostring(device.id))
+    log.debug("GPS_HEALTH_TICK version=" .. DRIVER_VERSION .. " device=" .. tostring(device.id))
     online_async(device, "periodic", false)
   end, "phone-gps-health-v112")
   device:set_field(HEALTH_TIMER_FIELD, timer, { persist = false })

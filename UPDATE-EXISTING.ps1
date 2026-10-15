@@ -26,7 +26,7 @@ function Invoke-CLI {
     return $output
 }
 
-Write-Host "C.P Phone GPS v1.1.2 - EXISTING DRIVER UPDATE ONLY" -ForegroundColor Green
+Write-Host "C.P Phone GPS v1.1.3 - EXISTING DRIVER UPDATE ONLY" -ForegroundColor Green
 $null = Invoke-CLI -Arguments @('--version') -Description 'CLI version check'
 
 # Abort rather than installing a new ID, which could disturb the registered device/rules.
