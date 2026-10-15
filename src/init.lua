@@ -1,4 +1,4 @@
-local CP_MONITOR_META = { driver_name = "C.P Phone GPS", driver_version = "v1.0.9", package_key = "cp-phone-gps-edge-v105", target_name = "PhoneGPS NAS", host_pref = "nasIp", port_pref = "apiPort", transport = "http", direct_monitor_pref = "nasIp" }
+local CP_MONITOR_META = { driver_name = "C.P Phone GPS", driver_version = "v1.1.0", package_key = "cp-phone-gps-edge-v105", target_name = "PhoneGPS NAS", host_pref = "nasIp", port_pref = "apiPort", transport = "http", direct_monitor_pref = "nasIp" }
 local cp_monitor = require "cp_monitor"
 local capabilities = require "st.capabilities"
 local Driver = require "st.driver"
@@ -16,12 +16,15 @@ local summary_cap = capabilities[CAP_SUMMARY]
 local location_cap = capabilities[CAP_LOCATION]
 local info_cap = capabilities[CAP_INFO]
 
-local DRIVER_VERSION = "v1.0.9"
+local DRIVER_VERSION = "v1.1.0"
 local DEVICE_DNI = "cp-phone-gps"
 local DEFAULT_PROFILE = "cp-phone-gps-2"
 local POLL_TIMER_FIELD = "phone_gps_poll_timer_v1"
 local FAILURES_FIELD = "phone_gps_failures_v1"
 local PROFILE_FIELD = "phone_gps_profile_v1"
+local ONLINE_TIMER_FIELD = "phone_gps_online_timer_v110"
+local LAST_ONLINE_FIELD = "phone_gps_last_online_v110"
+local ONLINE_CONFIRM_SECONDS = 60
 
 local function trim(value)
   return (tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", ""))
@@ -92,6 +95,40 @@ local function emit_waiting(device)
       )
     end
   end
+end
+
+-- Device availability and NAS API availability are deliberately separate.
+-- A sleeping/offline NAS is reported by the summary and system monitor,
+-- without causing a false SmartThings device offline event.
+local function confirm_device_online(device, force)
+  local now = os.time()
+  local last = tonumber(device:get_field(LAST_ONLINE_FIELD)) or 0
+  if not force and last > 0 and (now - last) < ONLINE_CONFIRM_SECONDS then
+    return
+  end
+  local ok, err = pcall(function() device:online() end)
+  if ok then
+    device:set_field(LAST_ONLINE_FIELD, now, { persist = false })
+  else
+    log.warn("PhoneGPS online restore failed: " .. tostring(err))
+  end
+end
+
+local function stop_online_timer(device)
+  local timer = device:get_field(ONLINE_TIMER_FIELD)
+  if timer then
+    pcall(function() device.thread:cancel_timer(timer) end)
+    device:set_field(ONLINE_TIMER_FIELD, nil, { persist = false })
+  end
+end
+
+local function start_online_timer(device)
+  stop_online_timer(device)
+  confirm_device_online(device, true)
+  local timer = device.thread:call_on_schedule(ONLINE_CONFIRM_SECONDS, function()
+    confirm_device_online(device, true)
+  end, "phone-gps-availability")
+  device:set_field(ONLINE_TIMER_FIELD, timer, { persist = false })
 end
 
 local function local_base_url(device)
@@ -260,9 +297,7 @@ local function poll_local_data(driver, device, force_refresh)
     pcall(cp_monitor.poll, device, true)
     emit_phone_data(device, result)
     device:set_field(FAILURES_FIELD, 0)
-    -- NAS/API poll success must not toggle SmartThings device availability.
-    -- Availability is owned by the Edge runtime; poll health is reported through
-    -- summary + C.P monitor telemetry to avoid repeated network normal/error alerts.
+    confirm_device_online(device, false)
     return true
   end
 
@@ -345,6 +380,7 @@ end
 
 local function added(driver, device)
   pcall(cp_monitor.start, device, CP_MONITOR_META)
+  start_online_timer(device)
   apply_display_profile(device)
   emit_info(device)
   emit_waiting(device)
@@ -379,6 +415,7 @@ end
 
 local function removed(driver, device)
   stop_poll_timer(device)
+  stop_online_timer(device)
 end
 
 local function refresh_handler(driver, device, command)
