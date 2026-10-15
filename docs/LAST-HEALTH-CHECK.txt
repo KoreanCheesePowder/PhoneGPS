@@ -1,0 +1,6 @@
+Device: 7cd5ac18-6432-41c6-b298-d0bd6b5bf757
+{
+    "deviceId": "7cd5ac18-6432-41c6-b298-d0bd6b5bf757",
+    "state": "ONLINE",
+    "lastUpdatedDate": "2026-10-15T16:27:31.174Z"
+}

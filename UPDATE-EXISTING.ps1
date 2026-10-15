@@ -1,5 +1,6 @@
 ﻿$ErrorActionPreference = "Stop"
 Set-Location -LiteralPath $PSScriptRoot
+$DeviceHealthId = '7cd5ac18-6432-41c6-b298-d0bd6b5bf757'
 
 $DriverId = "8a672fc6-aee8-4b64-a138-f55346366687"
 $HubId = "c9e6b370-41a7-499a-ae95-3496747cd165"
@@ -25,7 +26,7 @@ function Invoke-CLI {
     return $output
 }
 
-Write-Host "C.P Phone GPS v1.1.0 - EXISTING DRIVER UPDATE ONLY" -ForegroundColor Green
+Write-Host "C.P Phone GPS v1.1.2 - EXISTING DRIVER UPDATE ONLY" -ForegroundColor Green
 $null = Invoke-CLI -Arguments @('--version') -Description 'CLI version check'
 
 # Abort rather than installing a new ID, which could disturb the registered device/rules.
@@ -82,4 +83,19 @@ foreach ($n in 1..4) {
 # Package+channel first, then install the SAME driverId to the SAME hub.
 $null = Invoke-CLI -Arguments @('edge:drivers:package', '.', '--channel', $ChannelId) -Description 'Package existing driver and assign version to channel'
 $null = Invoke-CLI -Arguments @('edge:drivers:install', $DriverId, '-H', $HubId, '-C', $ChannelId) -Description 'Install updated version on existing hub'
-Write-Host "UPDATE COMMAND SUCCEEDED - No devices or automations were deleted." -ForegroundColor Green
+
+Write-Host '[VERIFY] Checking actual SmartThings device health...' -ForegroundColor Cyan
+Start-Sleep -Seconds 16
+$healthOut = (& smartthings devices:health $DeviceHealthId -j 2>&1 | Out-String)
+$healthExit = $LASTEXITCODE
+Write-Host $healthOut
+$checkPath = Join-Path $PSScriptRoot 'docs\LAST-HEALTH-CHECK.txt'
+[System.IO.File]::WriteAllText($checkPath, ('Device: ' + $DeviceHealthId + "`r`n" + $healthOut), (New-Object System.Text.UTF8Encoding($false)))
+if ($healthExit -ne 0) {
+  Write-Warning 'Installation command finished, but health verification failed. Send docs/LAST-HEALTH-CHECK.txt.'
+} elseif ($healthOut -match '(?i)"state"\s*:\s*"OFFLINE"') {
+  Write-Warning 'UPDATED DRIVER BUT DEVICE STILL OFFLINE. Hub TCP/API connectivity or Edge HEALTH_API_REJECTED must be checked in logcat.'
+  Write-Host 'Run HEALTH-CHECK.cmd and send its output. Do not reinstall the device.' -ForegroundColor Yellow
+} else {
+  Write-Host 'Health check complete. Verify the printed ONLINE state, do not infer from installer success.' -ForegroundColor Green
+}

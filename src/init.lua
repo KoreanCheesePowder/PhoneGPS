@@ -1,4 +1,4 @@
-local CP_MONITOR_META = { driver_name = "C.P Phone GPS", driver_version = "v1.1.0", package_key = "cp-phone-gps-edge-v105", target_name = "PhoneGPS NAS", host_pref = "nasIp", port_pref = "apiPort", transport = "http", direct_monitor_pref = "nasIp" }
+local CP_MONITOR_META = { driver_name = "C.P Phone GPS", driver_version = "v1.1.2", package_key = "cp-phone-gps-edge-v105", target_name = "PhoneGPS NAS", host_pref = "nasIp", port_pref = "apiPort", transport = "http", direct_monitor_pref = "nasIp" }
 local cp_monitor = require "cp_monitor"
 local capabilities = require "st.capabilities"
 local Driver = require "st.driver"
@@ -16,7 +16,7 @@ local summary_cap = capabilities[CAP_SUMMARY]
 local location_cap = capabilities[CAP_LOCATION]
 local info_cap = capabilities[CAP_INFO]
 
-local DRIVER_VERSION = "v1.1.0"
+local DRIVER_VERSION = "v1.1.2"
 local DEVICE_DNI = "cp-phone-gps"
 local DEFAULT_PROFILE = "cp-phone-gps-2"
 local POLL_TIMER_FIELD = "phone_gps_poll_timer_v1"
@@ -97,38 +97,118 @@ local function emit_waiting(device)
   end
 end
 
--- Device availability and NAS API availability are deliberately separate.
--- A sleeping/offline NAS is reported by the summary and system monitor,
--- without causing a false SmartThings device offline event.
-local function confirm_device_online(device, force)
+-- PhoneGPS virtual LAN device is kept online independently of NAS HTTP availability.
+-- Important: SmartThings may have stale cloud availability following a hub outage.
+-- Never block the init lifecycle waiting for a health API response.  Network and
+-- health API calls run in separate cosock tasks, after the polling timer is set.
+local HEALTH_TIMER_FIELD = "phone_gps_health_timer_v112"
+local HEALTH_BUSY_FIELD = "phone_gps_health_busy_v112"
+local HEALTH_LAST_ATTEMPT_FIELD = "phone_gps_health_last_attempt_v112"
+local HEALTH_RESET_DONE_FIELD = "phone_gps_health_reset_done_v112"
+local HEALTH_INTERVAL_SECONDS = 60
+local HEALTH_BUSY_TIMEOUT_SECONDS = 90
+
+local function read_field(device, name)
+  local ok, result = pcall(function() return device:get_field(name) end)
+  if ok then return result end
+  log.error("GPS_HEALTH_FIELD_READ_FAILED " .. tostring(result))
+  return nil
+end
+
+local function availability_call(device, wanted, reason)
+  local op = wanted and "ONLINE" or "OFFLINE"
+  log.warn(string.format("GPS_HEALTH_CALL %s version=%s reason=%s device=%s",
+    op, DRIVER_VERSION, tostring(reason), tostring(device.id)))
+  local invoke_ok, status, detail = pcall(function()
+    if wanted then return device:online() end
+    return device:offline()
+  end)
+  if invoke_ok and status == true then
+    log.warn(string.format("GPS_HEALTH_API_ACCEPTED %s reason=%s device=%s",
+      op, tostring(reason), tostring(device.id)))
+    return true
+  end
+  log.error(string.format("GPS_HEALTH_API_REJECTED %s reason=%s status=%s detail=%s",
+    op, tostring(reason), tostring(status), tostring(detail or (not invoke_ok and status) or "none")))
+  return false
+end
+
+-- This function returns immediately even if the SDK health API yields.
+local function online_async(device, reason, force)
   local now = os.time()
-  local last = tonumber(device:get_field(LAST_ONLINE_FIELD)) or 0
-  if not force and last > 0 and (now - last) < ONLINE_CONFIRM_SECONDS then
+  local last_attempt = tonumber(read_field(device, HEALTH_LAST_ATTEMPT_FIELD)) or 0
+  local active_since = tonumber(read_field(device, HEALTH_BUSY_FIELD)) or 0
+  if active_since > 0 and now - active_since < HEALTH_BUSY_TIMEOUT_SECONDS then
+    log.warn("GPS_HEALTH_PENDING reason=" .. tostring(reason))
     return
   end
-  local ok, err = pcall(function() device:online() end)
-  if ok then
-    device:set_field(LAST_ONLINE_FIELD, now, { persist = false })
-  else
-    log.warn("PhoneGPS online restore failed: " .. tostring(err))
+  if active_since > 0 then
+    log.error("GPS_HEALTH_PREVIOUS_REQUEST_TIMEOUT elapsed=" .. tostring(now - active_since))
+  end
+  if not force and last_attempt > 0 and now - last_attempt < HEALTH_INTERVAL_SECONDS then return end
+  device:set_field(HEALTH_BUSY_FIELD, now, { persist = false })
+  device:set_field(HEALTH_LAST_ATTEMPT_FIELD, now, { persist = false })
+  local started, spawn_err = pcall(function()
+    cosock.spawn(function()
+      local ok, err = pcall(availability_call, device, true, reason)
+      if not ok then log.error("GPS_HEALTH_TASK_ERROR " .. tostring(err)) end
+      device:set_field(HEALTH_BUSY_FIELD, nil, { persist = false })
+    end, "cp-phone-gps-online")
+  end)
+  if not started then
+    device:set_field(HEALTH_BUSY_FIELD, nil, { persist = false })
+    log.error("GPS_HEALTH_SPAWN_FAILED " .. tostring(spawn_err))
   end
 end
 
 local function stop_online_timer(device)
-  local timer = device:get_field(ONLINE_TIMER_FIELD)
+  local timer = read_field(device, HEALTH_TIMER_FIELD)
   if timer then
     pcall(function() device.thread:cancel_timer(timer) end)
-    device:set_field(ONLINE_TIMER_FIELD, nil, { persist = false })
+    device:set_field(HEALTH_TIMER_FIELD, nil, { persist = false })
   end
 end
 
 local function start_online_timer(device)
   stop_online_timer(device)
-  confirm_device_online(device, true)
-  local timer = device.thread:call_on_schedule(ONLINE_CONFIRM_SECONDS, function()
-    confirm_device_online(device, true)
-  end, "phone-gps-availability")
-  device:set_field(ONLINE_TIMER_FIELD, timer, { persist = false })
+  log.warn("GPS_HEALTH_INIT version=" .. DRIVER_VERSION .. " device=" .. tostring(device.id))
+  -- One-time offline/online transition resends a distinct state change to the
+  -- platform if the hub and the cloud disagree following the network outage.
+  -- Run only on upgrading to v1.1.2; not at every poll or every hub restart.
+  local reset_done = read_field(device, HEALTH_RESET_DONE_FIELD) == true
+  if not reset_done then
+    device:set_field(HEALTH_RESET_DONE_FIELD, true, { persist = true })
+    local started, err = pcall(function()
+      cosock.spawn(function()
+        local ok, detail = pcall(availability_call, device, false, "recovery-transition")
+        if not ok then log.error("GPS_HEALTH_RESET_ERROR " .. tostring(detail)) end
+        -- Schedule the online transition after the offline call has completed.
+        device.thread:call_with_delay(3, function()
+          online_async(device, "recovery-transition", true)
+        end, "phone-gps-recovery-transition")
+      end, "cp-phone-gps-recovery-reset")
+    end)
+    if not started then
+      log.error("GPS_HEALTH_RESET_SPAWN_FAILED " .. tostring(err))
+      device.thread:call_with_delay(3, function()
+        online_async(device, "reset-fallback", true)
+      end, "phone-gps-reset-fallback")
+    end
+  else
+    device.thread:call_with_delay(2, function()
+      online_async(device, "restart", true)
+    end, "phone-gps-online-initial")
+  end
+  local timer = device.thread:call_on_schedule(HEALTH_INTERVAL_SECONDS, function()
+    log.warn("GPS_HEALTH_TICK version=" .. DRIVER_VERSION .. " device=" .. tostring(device.id))
+    online_async(device, "periodic", false)
+  end, "phone-gps-health-v112")
+  device:set_field(HEALTH_TIMER_FIELD, timer, { persist = false })
+  if not timer then log.error("GPS_HEALTH_TIMER_CREATE_FAILED") end
+end
+
+local function confirm_device_online(device, force)
+  online_async(device, "nas-api-success", force == true)
 end
 
 local function local_base_url(device)
@@ -295,9 +375,9 @@ local function poll_local_data(driver, device, force_refresh)
 
   if ok then
     pcall(cp_monitor.poll, device, true)
+    confirm_device_online(device, false)
     emit_phone_data(device, result)
     device:set_field(FAILURES_FIELD, 0)
-    confirm_device_online(device, false)
     return true
   end
 
@@ -379,12 +459,21 @@ local function discovery_handler(driver, opts, should_continue)
 end
 
 local function added(driver, device)
+  log.warn(string.format("GPS_BOOT VERSION=%s device=%s nas=%s:%s", DRIVER_VERSION,
+    tostring(device.id), tostring(device.preferences and device.preferences.nasIp),
+    tostring(device.preferences and device.preferences.apiPort)))
   pcall(cp_monitor.start, device, CP_MONITOR_META)
-  start_online_timer(device)
-  apply_display_profile(device)
-  emit_info(device)
-  emit_waiting(device)
-  start_poll_timer(driver, device)
+  -- Install the normal data polling worker BEFORE health reconciliation.
+  local poll_ok, poll_err = pcall(start_poll_timer, driver, device)
+  if not poll_ok then log.error("GPS_POLL_START_FAILED " .. tostring(poll_err)) end
+  local recovery_ok, recovery_err = pcall(start_online_timer, device)
+  if not recovery_ok then log.error("GPS_HEALTH_START_FAILED " .. tostring(recovery_err)) end
+  local meta_ok, meta_err = pcall(function()
+    apply_display_profile(device)
+    emit_info(device)
+    emit_waiting(device)
+  end)
+  if not meta_ok then log.error("GPS_METADATA_START_FAILED " .. tostring(meta_err)) end
   device.thread:call_with_delay(3, function()
     sync_settings_to_nas(device)
   end, "phone-gps-settings-initial")
@@ -407,6 +496,7 @@ local function info_changed(driver, device, event, args)
 
   device:set_field(FAILURES_FIELD, 0)
   start_poll_timer(driver, device)
+  start_online_timer(device)
 
   device.thread:call_with_delay(1, function()
     sync_settings_to_nas(device)
@@ -419,7 +509,8 @@ local function removed(driver, device)
 end
 
 local function refresh_handler(driver, device, command)
-  log.info("PhoneGPS manual refresh")
+  log.warn("GPS_REFRESH_RECEIVED version=" .. DRIVER_VERSION)
+  online_async(device, "manual-refresh", true)
   poll_local_data(driver, device, true)
 end
 

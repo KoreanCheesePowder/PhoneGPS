@@ -1,26 +1,23 @@
-# C.P Phone GPS Edge Driver v1.1.0
+# C.P Phone GPS Edge v1.1.2 - offline recovery
 
-## 업데이트
-1. ZIP 압축 해제
-2. `UPDATE-EXISTING.cmd` 실행
-3. SmartThings 앱에서 **핸드폰 GPS** 장치의 온라인 상태 확인
+1. Extract ZIP to a NEW folder and run `UPDATE-EXISTING.cmd`.
+2. Do not remove or re-register the SmartThings device. All existing settings, routines and profiles stay intact.
+3. Installation checks the actual SmartThings device health after packaging / update.
+4. If OFFLINE remains, run `smartthings edge:drivers:logcat 8a672fc6-aee8-4b64-a138-f55346366687` and look for `GPS_BOOT`, `GPS_HEALTH_TICK`, `GPS_HEALTH_CALL`, `GPS_HEALTH_API_ACCEPTED` / `GPS_HEALTH_API_REJECTED`.
+5. Use `HEALTH-CHECK.cmd` to save cloud health and preferences to docs/LAST-HEALTH-CHECK.txt.
 
-등록된 기존 장치 및 루틴을 삭제하지 말 것. 기존 장치의 NAS IP 설정을 변경하지 않으므로, 앱 설정에서 옛 주소 `192.168.1.92`가 남아 있다면 `192.168.1.53`으로 수동 수정 필요.
+Changes:
+- New v1.1.2 startup schedules the GPS poll timer before health checks.
+- Health API runs in its own cosock coroutine to avoid blocking driver lifecycle.
+- One-time OFFLINE then ONLINE transition on first v1.1.2 startup to resync stale cloud availability after a hub/network outage. It does NOT repeat this every restart or poll.
+- Retry ONLINE every 60 seconds and log API acknowledgement or failure.
+- HTTP location/API response and failure handling unchanged; NAS sleep does not force SmartThings device offline.
+- IP settings are preserved; the new default for fresh devices is 192.168.1.53:8787. Existing .92 preferences must be manually changed in SmartThings to .53.
+- Device and driver ID, location/ESL UI, metadata and capabilities are preserved.
 
-## 변경 내용
-- Edge 초기화 및 60초 주기 온라인 상태 확인으로 재연결 후 오프라인 상태 자동 복구.
-- 정상 NAS/API 조회 성공 시 온라인 확인 추가.
-- NAS/API 실패는 기존 v1.0.9 동작대로 요약과 시스템 모니터에만 보고하며 SmartThings 장치를 강제로 오프라인으로 바꾸지 않음.
-- 신규 등록의 NAS 기본 주소 `192.168.1.53` (8787); 기존 설정 보존.
-- 기존 1~4개 표시 프로필 및 기존 2개 표시 프로필의 프레젠테이션 ID 유지.
-- 기존 PhoneGPS HTTP API, 위치·주소·거리 변환, ESL 갱신 주기, 모니터 UDP 8791 유지.
-- 기존 `packageKey: cp-phone-gps-edge-v105`, 기존 허브/채널/드라이버 ID로 업데이트하여 중복 드라이버 방지.
+Existing driver ID: 8a672fc6-aee8-4b64-a138-f55346366687
+Existing device ID: 7cd5ac18-6432-41c6-b298-d0bd6b5bf757
+Existing hub: c9e6b370-41a7-499a-ae95-3496747cd165
+Existing channel: cd373cad-c1db-4b2a-943b-6ed6fb51d2fa
 
-참고: 원본 ZIP에서 1·3·4개 표시 프로필은 프레젠테이션 ID가 `REPLACE_ME`이므로, 최초 업데이트 때 필요한 프로필만 생성한다. 이미 사용 중인 2개 표시 화면의 ID는 기존 등록 정보를 적용했다.
-
-정적 소스 검사 완료. 실제 허브 설치 및 동작은 사용자 SmartThings 환경에서 최종 확인 필요.
-
-## 설치 스크립트 수정
-- VID 발급 후 YAML 작성 시 UUID 숫자 시작으로 인한 치환 오류 수정.
-- 패키징 전 4개 프로필의 VID 형식과 preferences 섹션 검증.
-- 기존 장치 ID, 허브, 드라이버 ID, 패키지 키를 유지.
+Offline / online SDK responses do not prove SmartThings cloud UI status. Installer reads actual device health. Successful installation on a real hub cannot be tested offline.

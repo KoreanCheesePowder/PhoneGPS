@@ -1,0 +1,18 @@
+C.P GPS - v1.1.2 HEALTH VERIFICATION
+
+UPDATE: run UPDATE-EXISTING.cmd. Do not delete/re-register SmartThings devices.
+If SmartThings reports OFFLINE after the update: run HEALTH-CHECK.cmd.
+Send docs/LAST-HEALTH-CHECK.txt and 20 seconds of Edge logcat for this driver.
+
+Only an accepted device:online() return value is treated as an SDK success.
+Neither an SDK success nor a successful package upload can prove the cloud/UI status.
+FAN/LIGHT online availability requires a successful TCP session from the HUB.
+GPS is a virtual LAN integration; its online presence does not depend on NAS availability.
+
+Existing driver ID: 8a672fc6-aee8-4b64-a138-f55346366687
+Existing device ID: 7cd5ac18-6432-41c6-b298-d0bd6b5bf757
+Existing channel: cd373cad-c1db-4b2a-943b-6ed6fb51d2fa
+Existing hub: c9e6b370-41a7-499a-ae95-3496747cd165
+
+Safety: capability IDs, device profile identifiers, RS485 command bytes (where applicable),
+network preferences, and registered SmartThings devices are preserved.

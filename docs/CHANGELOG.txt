@@ -1,0 +1,1 @@
+v1.1.2: Nonblocking startup + explicit one-time stale-health resync + 60s periodic health retries and diagnostics. No changes to GPS HTTP protocol or user rules.
